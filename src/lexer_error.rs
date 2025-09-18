@@ -1,0 +1,12 @@
+
+
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LexerError {
+    MalformedIdentifier {
+        value: String,
+        start_position: usize,
+        end_position: usize,
+        file: String,
+    }
+}
