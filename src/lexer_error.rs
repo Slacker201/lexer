@@ -8,5 +8,9 @@ pub enum LexerError {
         start_position: usize,
         end_position: usize,
         file: String,
-    }
+    },
+    UnterminatedStringLiteral {
+        position: usize,
+        file: String,
+    },
 }
