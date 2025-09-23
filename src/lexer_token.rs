@@ -14,6 +14,7 @@ pub enum TokenType {
     Symbol(Symbol),
     Identifier(String),
     Literal(Literal),
+    Comment(Comment),
 }
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum KeyWord {
@@ -72,5 +73,21 @@ pub enum Literal {
     Float{
         integer: String,
         decimal: String,
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub enum Comment {
+    SingleLine {
+        value: String,
+        cleaned_value: String,
+    },
+    Multiline {
+        value: String,
+        cleaned_value: String,
+    },
+    Documentation {
+        value: String,
+        cleaned_value: String,
     }
 }
