@@ -1,12 +1,11 @@
 use crate::{lexer_error::LexerError, lexer_token::LexerToken, tokenizer::tokenize};
-use slk_tokenstream::tokenstream;
 
 pub mod lexer_token;
 pub mod lexer_error;
 mod tokenizer;
 
 pub fn lex(program: String) -> Result<Vec<LexerToken>, LexerError> {
-    tokenize(program)
+    tokenize(program, "test.slk".to_string())
 }
 
 
@@ -16,7 +15,7 @@ mod tests {
 
     #[test]
     fn main() {
-        let program = "let test = 26; // this is a comment\nfn main() {} println!(\"Test\");/* multiline\ncomment*/more code testing a literal \"test\" \"//fake comment\"".to_string();
+        let program = "let test = 21;\n//\"test\"\n//test2\nfn identifier".to_string();
         let tokens = lex(program).unwrap();
         println!("{:?}", tokens);
     }

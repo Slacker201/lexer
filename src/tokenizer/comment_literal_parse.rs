@@ -1,22 +1,28 @@
 
 
-use std::{collections::HashMap, hash::Hash, sync::LazyLock};
+use std::{collections::HashMap, sync::LazyLock};
 
 use slk_tokenstream::tokenstream::TokenStream;
 
-use crate::{lexer_error::LexerError, lexer_token::{KeyWord, LexerToken, TokenType}, tokenizer::symbol_parser::parse_symbol};
+use crate::{lexer_error::LexerError, lexer_token::{KeyWord, LexerToken, Literal, TokenType}, tokenizer::symbol_parser::parse_symbol};
 
 
 static KEYWORDS: LazyLock<HashMap<String, KeyWord>> = LazyLock::new(|| {
     let mut e = HashMap::new();
     e.insert("fn".to_string(), KeyWord::FunctionDeclaration);
     e.insert("let".to_string(), KeyWord::VariableDeclaration);
+    e.insert("return".to_string(), KeyWord::Return);
+    e.insert("break".to_string(), KeyWord::Break);
+    e.insert("continue".to_string(), KeyWord::Continue);
+    e.insert("for".to_string(), KeyWord::ForDeclaration);
+    e.insert("if".to_string(), KeyWord::IfDeclaration);
+    e.insert("while".to_string(), KeyWord::WhileDeclaration);
     e
 });
 
 
 
-pub(crate) fn strip_literals_and_comments(program: String) -> Result<Vec<LexerToken>, LexerError> {
+pub(crate) fn strip_literals_and_comments(program: String, file: String) -> Result<Vec<LexerToken>, LexerError> {
     
     let mut chars = TokenStream::new(program.chars().collect());
     let mut tokens = Vec::new();
@@ -28,15 +34,25 @@ pub(crate) fn strip_literals_and_comments(program: String) -> Result<Vec<LexerTo
             None => break,
         };
         if is_singleline_comment(&chars) {
+            println!("Parsing comment word");
             add_word(&mut tokens, &mut word, word_start_pos)?;
             let comment = parse_singleline_comment(&mut chars);
             tokens.push(comment);
+            continue;
+        }
+
+        if is_string_literal(&chars) {
+            add_word(&mut tokens, &mut word, word_start_pos)?;
+            println!("parsing string");
+            let string = parse_string_literal(&mut chars, file.clone())?;
+            tokens.push(string);
             continue;
         }
         
         let symbol = parse_symbol(char);
         match symbol {
             Some(symbol) => {
+                add_word(&mut tokens, &mut word, word_start_pos)?;
                 tokens.push(
                     LexerToken { 
                         token_type: crate::lexer_token::TokenType::Symbol(symbol), 
@@ -49,8 +65,11 @@ pub(crate) fn strip_literals_and_comments(program: String) -> Result<Vec<LexerTo
                 continue
             },
             None => {
-                println!("Did not match char into symbol: {}", char);
+                if word.is_empty() {
+                    word_start_pos = chars.cursor();
+                }
                 word.push(char);
+                chars.consume();
             }
         }
     }
@@ -92,8 +111,8 @@ fn parse_singleline_comment(chars: &mut TokenStream<char>) -> LexerToken {
     let raw_comment: String = comment_src.iter().collect();
     LexerToken { 
         start_position: start,
-        length: raw_comment.len(),
-        end_position: start + raw_comment.len(),
+        length: raw_comment.len()-1,
+        end_position: start + raw_comment.len()-1,
         token_type: crate::lexer_token::TokenType::Comment(
             crate::lexer_token::Comment::SingleLine { 
                 value: raw_comment, 
@@ -103,27 +122,115 @@ fn parse_singleline_comment(chars: &mut TokenStream<char>) -> LexerToken {
     }
 }
 
+fn is_string_literal(chars: &TokenStream<char>) -> bool {
+    chars.peek() == Some(&'"')
+}
 
-
-
-fn add_word(tokens: &mut Vec<LexerToken>, word: &mut Vec<char>, word_start: usize) -> Result<(), LexerError> {
-    {
-        let word2: String = word.iter().collect();
-        let val = KEYWORDS.get(&word2);
-        match val {
-            Some(keyword) => {
-                let token = LexerToken {
-                    token_type: TokenType::Keyword(*keyword),
-                    start_position: word_start,
-                    length: word2.len(),
-                    end_position: word_start+word2.len()
-                };
-                tokens.push(token);
+fn parse_string_literal(chars: &mut TokenStream<char>, file: String) -> Result<LexerToken, LexerError> {
+    let start_pos = chars.cursor();
+    chars.consume();
+    let mut word = vec!['"'];
+    loop {
+        match chars.consume() {
+            Some('"') => {
+                chars.register_bookmark("a".to_string());
+                chars.set_cursor(chars.cursor()-1);
+                if chars.peek() == Some(&'\\') { // REMEMBER TO REMOVE BACKSLASH FROM PREVIOUS PARSE
+                    word.pop();
+                    word.push('"');
+                } else {
+                    word.push('"');
+                    return Ok(
+                        LexerToken {
+                            start_position: start_pos,
+                            length: word.len(),
+                            end_position: start_pos + word.len(),
+                            token_type: TokenType::Literal(
+                                Literal::String(word.iter().collect())
+                            ),
+                        }
+                    )
+                }
+                
+            }
+            Some(val) => {
+                word.push(*val);
             }
             None => {
-                // deal with identifiers n stuff
+                return Err(LexerError::UnterminatedStringLiteral { position: chars.cursor()-1, file: file })
             }
         }
     }
+}
+
+
+fn add_word(tokens: &mut Vec<LexerToken>, word: &mut Vec<char>, word_start: usize) -> Result<(), LexerError> {
+    let drained: String = word.drain(..).collect();
+    let mut start = word_start;
+    let mut current = String::new();
+
+    for ch in drained.chars() {
+        if ch.is_whitespace() {
+            // finalize current word if non-empty
+            if !current.is_empty() {
+                process_word(tokens, &current, start)?;
+                start += current.len();
+                current.clear();
+            }
+            // whitespace still counts toward position
+            start += ch.len_utf8();
+        } else {
+            current.push(ch);
+        }
+    }
+
+    // handle last word
+    if !current.is_empty() {
+        process_word(tokens, &current, start)?;
+    }
+
     Ok(())
+}
+
+fn process_word(tokens: &mut Vec<LexerToken>, word: &str, start: usize) -> Result<(), LexerError> {
+    if let Some(keyword) = KEYWORDS.get(word) {
+        tokens.push(LexerToken {
+            token_type: TokenType::Keyword(*keyword),
+            start_position: start,
+            length: word.len(),
+            end_position: start + word.len(),
+        });
+    } else if is_identifier(word) {
+        tokens.push(LexerToken {
+            token_type: TokenType::Identifier(word.to_string()),
+            start_position: start,
+            length: word.len(),
+            end_position: start + word.len(),
+        });
+    } else if word.parse::<u128>().is_ok() {
+        tokens.push(LexerToken {
+            token_type: TokenType::Literal(Literal::Integer(word.to_string())),
+            start_position: start,
+            length: word.len(),
+            end_position: start + word.len(),
+        });
+    }
+    Ok(())
+}
+
+
+fn is_identifier(word: &str) -> bool {
+    let chars: Vec<char> = word.chars().collect();
+    match chars.first() {
+        Some(val) => {
+            if val.is_alphabetic() || val == &'_' {
+
+            } else {
+                return false;
+            }
+        },
+        _ => return false
+    }
+
+    chars.iter().all(|c| c.is_ascii_alphanumeric() || c == &'_')
 }

@@ -5,11 +5,10 @@ use crate::{lexer_error::LexerError, lexer_token::LexerToken, tokenizer::comment
 
 
 mod comment_literal_parse;
-mod keyword_parser;
 mod symbol_parser;
 
-pub(crate) fn tokenize(program: String) -> Result<Vec<LexerToken>, LexerError> {
-    let first_pass_tokens = strip_literals_and_comments(program)?;
+pub(crate) fn tokenize(program: String, file: String) -> Result<Vec<LexerToken>, LexerError> {
+    let first_pass_tokens = strip_literals_and_comments(program, file)?;
     println!("{:?}", first_pass_tokens);
 
 
