@@ -4,8 +4,8 @@ pub mod lexer_token;
 pub mod lexer_error;
 mod tokenizer;
 
-pub fn lex(program: String) -> Result<Vec<LexerToken>, LexerError> {
-    tokenize(program, "test.slk".to_string())
+pub fn lex(program: String, file: String) -> Result<Vec<LexerToken>, LexerError> {
+    tokenize(program, file)
 }
 
 
@@ -16,7 +16,7 @@ mod tests {
     #[test]
     fn main() {
         let program = "let test = 21;\n//\"test\"\n//test2\nfn identifier".to_string();
-        let tokens = lex(program).unwrap();
+        let tokens = lex(program, "test".to_string()).unwrap();
         println!("{:?}", tokens);
     }
 }
