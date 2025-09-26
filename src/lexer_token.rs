@@ -7,6 +7,7 @@ pub struct LexerToken {
     pub start_position: usize,
     pub length: usize,
     pub end_position: usize,
+    pub file: String,
 }
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum TokenType {
