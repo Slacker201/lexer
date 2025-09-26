@@ -12,5 +12,5 @@ pub(crate) fn tokenize(program: String, file: String) -> Result<Vec<LexerToken>,
     println!("{:?}", first_pass_tokens);
 
 
-    Ok(Vec::new())
+    Ok(first_pass_tokens)
 }
