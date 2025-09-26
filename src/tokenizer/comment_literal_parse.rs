@@ -1,255 +1,236 @@
+
+
+use std::{collections::HashMap, sync::LazyLock};
+
 use slk_tokenstream::tokenstream::TokenStream;
 
-use crate::lexer_error::LexerError;
+use crate::{lexer_error::LexerError, lexer_token::{KeyWord, LexerToken, Literal, TokenType}, tokenizer::symbol_parser::parse_symbol};
+
+
+static KEYWORDS: LazyLock<HashMap<String, KeyWord>> = LazyLock::new(|| {
+    let mut e = HashMap::new();
+    e.insert("fn".to_string(), KeyWord::FunctionDeclaration);
+    e.insert("let".to_string(), KeyWord::VariableDeclaration);
+    e.insert("return".to_string(), KeyWord::Return);
+    e.insert("break".to_string(), KeyWord::Break);
+    e.insert("continue".to_string(), KeyWord::Continue);
+    e.insert("for".to_string(), KeyWord::ForDeclaration);
+    e.insert("if".to_string(), KeyWord::IfDeclaration);
+    e.insert("while".to_string(), KeyWord::WhileDeclaration);
+    e
+});
 
 
 
-
-
-pub(crate) fn strip_literals_and_comments(program: String) -> Vec<CommentLiteralTokens> {
+pub(crate) fn strip_literals_and_comments(program: String, file: String) -> Result<Vec<LexerToken>, LexerError> {
     
     let mut chars = TokenStream::new(program.chars().collect());
     let mut tokens = Vec::new();
     let mut word = Vec::new();
     let mut word_start_pos = 0;
     loop {
-        let current_char = chars.peek();
-        let next_char = chars.peek_offset(1);
-        if current_char.is_none() {
-            break;
+        let char = match chars.peek() {
+            Some(char) => *char,
+            None => break,
+        };
+        if is_singleline_comment(&chars) {
+            println!("Parsing comment word");
+            add_word(&mut tokens, &mut word, word_start_pos)?;
+            let comment = parse_singleline_comment(&mut chars);
+            tokens.push(comment);
+            continue;
         }
-        if is_single_line_comment(current_char, next_char) {
-            if !word.is_empty() {
-                if word.iter().collect::<String>().trim().is_empty() {
 
-                } else {
-                    tokens.push(
-                        CommentLiteralTokens::Unparsed { 
-                            value: word.drain(..).collect(), 
-                            start_position: word_start_pos, 
-                            end_position: chars.cursor(), 
-                            file: "TODOTODOTODO".to_string()
-                        }
-                    );
-                }
-            }
-            let start_pos = chars.cursor();
-            let comment = parse_single_line_comment(&mut chars);
-            tokens.push(
-                CommentLiteralTokens::Comment { 
-                    value: comment.iter().collect(), 
-                    start_position: start_pos, 
-                    end_position: chars.cursor(), 
-                    file: "TODOTODOTODO".to_string()
-                }
-            );
-        } else if is_multiline_comment(current_char, next_char) {
-            if !word.is_empty() {
-                if word.iter().collect::<String>().trim().is_empty() {
-
-                } else {
-                    tokens.push(
-                            CommentLiteralTokens::Unparsed { 
-                                value: word.drain(..).collect(), 
-                                start_position: word_start_pos, 
-                                end_position: chars.cursor(), 
-                                file: "TODOTODOTODO".to_string()
-                            }
-                        );
-                    }
-            }
-            let start_pos = chars.cursor();
-            let comment = parse_multiline_comment(&mut chars);
-            tokens.push(
-                CommentLiteralTokens::Comment { 
-                    value: comment.iter().collect(), 
-                    start_position: start_pos, 
-                    end_position: chars.cursor(), 
-                    file: "TODOTODOTODO".to_string()
-                }
-            );
-        } else if current_char == Some(&'"') {
-            if !word.is_empty() {
-                if word.iter().collect::<String>().trim().is_empty() {
-                    
-                } else {tokens.push(
-                        CommentLiteralTokens::Unparsed { 
-                            value: word.drain(..).collect(), 
-                            start_position: word_start_pos, 
-                            end_position: chars.cursor(), 
-                            file: "TODOTODOTODO".to_string()
-                        }
-                    );
-                }
-            }
-            let start_pos = chars.cursor();
-            match parse_string_literal(&mut chars) {
-                Ok(literal) => {
-                    tokens.push(
-                        CommentLiteralTokens::StringLiteral { 
-                            value: literal.iter().collect(), 
-                            start_position: start_pos, 
-                            end_position: chars.cursor(), 
-                            file: "TODOTODOTODO".to_string()
-                        }
-                    );
-                }
-                Err(e) => {
-                    tokens.push(
-                        CommentLiteralTokens::Error { 
-                            message: format!("{:?}", e), 
-                            position: chars.cursor(), 
-                            file: "TODOTODOTODO".to_string()
-                        }
-                    );
-                    break;
-                }
-            }
-        } else {
-            if word.is_empty() {
-                word_start_pos = chars.cursor();
-            }
-            word.push(current_char.unwrap().clone());
-            chars.consume();
-        }
-    }
-    if !word.is_empty() {
-        if word.iter().collect::<String>().trim().is_empty() {
-            return tokens;
-        } else {
-                tokens.push(
-                CommentLiteralTokens::Unparsed { 
-                    value: word.iter().collect(), 
-                    start_position: word_start_pos, 
-                    end_position: chars.cursor(), 
-                    file: "TODOTODOTODO".to_string()
-                }
-            );
+        if is_string_literal(&chars) {
+            add_word(&mut tokens, &mut word, word_start_pos)?;
+            println!("parsing string");
+            let string = parse_string_literal(&mut chars, file.clone())?;
+            tokens.push(string);
+            continue;
         }
         
-    }
-
-    tokens
-}
-
-fn is_single_line_comment(current_char: Option<&char>, next_char: Option<&char>) -> bool {
-    match (current_char, next_char) {
-        (Some('/'), Some('/')) => true,
-        _ => false,
-    }
-}
-fn is_multiline_comment(current_char: Option<&char>, next_char: Option<&char>) -> bool {
-    match (current_char, next_char) {
-        (Some('/'), Some('*')) => true,
-        _ => false,
-    }
-}
-
-fn parse_multiline_comment(chars: &mut TokenStream<char>) -> Vec<char> {
-    let mut comment = Vec::new();
-    comment.push('/');
-    comment.push('*');
-    chars.consume();
-    chars.consume();
-    loop {
-        let c = chars.peek();
-        match c {
-            Some('*') | None => {
-                if chars.peek_offset(1) == Some(&'/') {
-                    comment.push(c.unwrap().clone());
-                    comment.push(chars.peek_offset(1).unwrap().clone());
-                    chars.consume();
-                    chars.consume();
-                    break;
+        let symbol = parse_symbol(char);
+        match symbol {
+            Some(symbol) => {
+                add_word(&mut tokens, &mut word, word_start_pos)?;
+                tokens.push(
+                    LexerToken { 
+                        token_type: crate::lexer_token::TokenType::Symbol(symbol), 
+                        start_position: chars.cursor(), 
+                        length: 1, end_position: 
+                        chars.cursor()+1 
+                    }
+                );
+                chars.consume();
+                continue
+            },
+            None => {
+                if word.is_empty() {
+                    word_start_pos = chars.cursor();
                 }
-                comment.push(c.unwrap().clone());
-                chars.consume();
-            }
-            Some(ch) => {
-                comment.push(ch.clone());
+                word.push(char);
                 chars.consume();
             }
         }
     }
-    comment
+
+    Ok(tokens)
 }
 
-fn parse_single_line_comment(chars: &mut TokenStream<char>) -> Vec<char> {
-    let mut comment = Vec::new();
-    comment.push('/');
-    comment.push('/');
-    chars.consume();
-    chars.consume();
-    loop {
-        let c = chars.peek();
-        match c {
-            Some('\n') => {
-                comment.push('\n');
-                chars.consume();
-                return comment;
-            }
-            Some(ch) => {
-                comment.push(ch.clone());
-                chars.consume();
-            }
-            None => return comment,
-        }
-    }
+fn is_singleline_comment(token_stream: &TokenStream<char>) -> bool {
+    matches!((token_stream.peek(), token_stream.peek_offset(1)), (Some(&'/'), Some('/')))
 }
 
-fn parse_string_literal(chars: &mut TokenStream<char>) -> Result<Vec<char>, LexerError> {
-    let mut literal = Vec::new();
-    literal.push('"');
+fn parse_singleline_comment(chars: &mut TokenStream<char>) -> LexerToken {
+    let mut comment_src = Vec::new();
+    let start = chars.cursor();
+    comment_src.push('/');
+    comment_src.push('/');
+    chars.consume();
     chars.consume();
     loop {
         match chars.consume() {
-            Some('"') => {
-                literal.push('"');
-                break;
-            }
-            Some(ch) => {
-                literal.push(*ch);
+            Some(char) => {
+                comment_src.push(*char);
+                match *char {
+                    '\n' => {
+                        comment_src.push('\n');
+                        break;
+                    }
+                    _ => {
+
+                    }
+                }
             }
             None => {
-                return Err(LexerError::UnterminatedStringLiteral {
-                    position: chars.cursor(),
-                    file: "TODOTODOTODO".to_string()
-                });
+                break;
             }
         }
     }
-    return Ok(literal);
-}
-#[derive(Debug, Clone)]
-pub(crate) enum CommentLiteralTokens {
-    Comment {
-        value: String,
-        start_position: usize,
-        end_position: usize,
-        file: String,
-    },
-    StringLiteral {
-        value: String,
-        start_position: usize,
-        end_position: usize,
-        file: String,
-    },
-    Unparsed {
-        value: String,
-        start_position: usize,
-        end_position: usize,
-        file: String,
-    },
-    Error {
-        message: String,
-        position: usize,
-        file: String,
+    let cleaned_comment = comment_src.clone()[2..].iter().collect();
+    let raw_comment: String = comment_src.iter().collect();
+    LexerToken { 
+        start_position: start,
+        length: raw_comment.len()-1,
+        end_position: start + raw_comment.len()-1,
+        token_type: crate::lexer_token::TokenType::Comment(
+            crate::lexer_token::Comment::SingleLine { 
+                value: raw_comment, 
+                cleaned_value: cleaned_comment
+            }
+        ),
     }
 }
 
-enum State {
-    Normal,
-    InSingleLineComment,
-    InMultiLineComment,
-    InStringLiteral,
+fn is_string_literal(chars: &TokenStream<char>) -> bool {
+    chars.peek() == Some(&'"')
+}
+
+fn parse_string_literal(chars: &mut TokenStream<char>, file: String) -> Result<LexerToken, LexerError> {
+    let start_pos = chars.cursor();
+    chars.consume();
+    let mut word = vec!['"'];
+    loop {
+        match chars.consume() {
+            Some('"') => {
+                chars.register_bookmark("a".to_string());
+                chars.set_cursor(chars.cursor()-1);
+                if chars.peek() == Some(&'\\') { // REMEMBER TO REMOVE BACKSLASH FROM PREVIOUS PARSE
+                    word.pop();
+                    word.push('"');
+                } else {
+                    word.push('"');
+                    return Ok(
+                        LexerToken {
+                            start_position: start_pos,
+                            length: word.len(),
+                            end_position: start_pos + word.len(),
+                            token_type: TokenType::Literal(
+                                Literal::String(word.iter().collect())
+                            ),
+                        }
+                    )
+                }
+                
+            }
+            Some(val) => {
+                word.push(*val);
+            }
+            None => {
+                return Err(LexerError::UnterminatedStringLiteral { position: chars.cursor()-1, file: file })
+            }
+        }
+    }
+}
+
+
+fn add_word(tokens: &mut Vec<LexerToken>, word: &mut Vec<char>, word_start: usize) -> Result<(), LexerError> {
+    let drained: String = word.drain(..).collect();
+    let mut start = word_start;
+    let mut current = String::new();
+
+    for ch in drained.chars() {
+        if ch.is_whitespace() {
+            // finalize current word if non-empty
+            if !current.is_empty() {
+                process_word(tokens, &current, start)?;
+                start += current.len();
+                current.clear();
+            }
+            // whitespace still counts toward position
+            start += ch.len_utf8();
+        } else {
+            current.push(ch);
+        }
+    }
+
+    // handle last word
+    if !current.is_empty() {
+        process_word(tokens, &current, start)?;
+    }
+
+    Ok(())
+}
+
+fn process_word(tokens: &mut Vec<LexerToken>, word: &str, start: usize) -> Result<(), LexerError> {
+    if let Some(keyword) = KEYWORDS.get(word) {
+        tokens.push(LexerToken {
+            token_type: TokenType::Keyword(*keyword),
+            start_position: start,
+            length: word.len(),
+            end_position: start + word.len(),
+        });
+    } else if is_identifier(word) {
+        tokens.push(LexerToken {
+            token_type: TokenType::Identifier(word.to_string()),
+            start_position: start,
+            length: word.len(),
+            end_position: start + word.len(),
+        });
+    } else if word.parse::<u128>().is_ok() {
+        tokens.push(LexerToken {
+            token_type: TokenType::Literal(Literal::Integer(word.to_string())),
+            start_position: start,
+            length: word.len(),
+            end_position: start + word.len(),
+        });
+    }
+    Ok(())
+}
+
+
+fn is_identifier(word: &str) -> bool {
+    let chars: Vec<char> = word.chars().collect();
+    match chars.first() {
+        Some(val) => {
+            if val.is_alphabetic() || val == &'_' {
+
+            } else {
+                return false;
+            }
+        },
+        _ => return false
+    }
+
+    chars.iter().all(|c| c.is_ascii_alphanumeric() || c == &'_')
 }

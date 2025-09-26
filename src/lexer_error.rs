@@ -13,4 +13,8 @@ pub enum LexerError {
         position: usize,
         file: String,
     },
+    UnterminatedBlockComment {
+        position: usize,
+        file: String
+    }
 }
