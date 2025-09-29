@@ -138,9 +138,12 @@ fn parse_string_literal(chars: &mut TokenStream<char>, file: String) -> Result<L
                 chars.register_bookmark("a".to_string());
                 chars.set_cursor(chars.cursor()-1);
                 if chars.peek() == Some(&'\\') { // REMEMBER TO REMOVE BACKSLASH FROM PREVIOUS PARSE
+                    println!("Previous character was backslash");
                     word.pop();
                     word.push('"');
                 } else {
+                    println!("Previous character was not backslash");
+                    chars.consume();
                     word.push('"');
                     return Ok(
                         LexerToken {
@@ -160,6 +163,7 @@ fn parse_string_literal(chars: &mut TokenStream<char>, file: String) -> Result<L
                 word.push(*val);
             }
             None => {
+                println!("{:?}", word);
                 return Err(LexerError::UnterminatedStringLiteral { position: chars.cursor()-1, file: file })
             }
         }

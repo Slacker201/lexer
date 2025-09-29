@@ -15,8 +15,8 @@ mod tests {
 
     #[test]
     fn main() {
-        let program = "let test = 21;\n//\"test\"\n//test2\nfn identifier".to_string();
-        let tokens = lex(program, "test".to_string()).unwrap();
-        println!("{:?}", tokens);
+        let program = "\"test\"".to_string();
+        let tokens = lex(program, "test_file".to_string()).unwrap();
+        println!("tokens: {:?}", tokens);
     }
 }
