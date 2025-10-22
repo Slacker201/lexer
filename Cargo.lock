@@ -13,9 +13,9 @@ dependencies = [
 [[package]]
 name = "slk_lexer_tokens"
 version = "0.1.0"
-source = "git+https://github.com/Slacker201/slk_lexer_tokens#6e93f5d59e22dba4a5c8e24bf1cd66cea228ef16"
+source = "git+https://github.com/Slacker201/slk_lexer_tokens#5530a28e1c62b203d03fc8a0508c74739a16a959"
 
 [[package]]
 name = "slk_tokenstream"
 version = "0.1.1"
-source = "git+https://github.com/Slacker201/slk_tokenstream#16ddf8076aabbd04b15d6c53e4ee43a45234fe3b"
+source = "git+https://github.com/Slacker201/slk_tokenstream#58171c7ffc86fb77b2975f62f0ced78d308182e9"
