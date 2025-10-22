@@ -5,3 +5,4 @@ edition = "2024"
 
 [dependencies]
 slk_tokenstream = { git = "https://github.com/Slacker201/slk_tokenstream" }
+slk_lexer_tokens = { git = "https://github.com/Slacker201/slk_lexer_tokens" }
