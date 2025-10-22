@@ -194,7 +194,7 @@ pub fn tokenize(program: String, file_name: String) -> Vec<SlkLexerToken> {
 
             None => {
                 SlkLexerToken {
-                    token_type: TokenType::Unknown("EOF".to_string()),
+                    token_type: TokenType::EOF,
                     char_start: program.cursor(),
                     char_end: program.cursor(),
                     file_name: file_name.clone(),
